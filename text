@@ -1,0 +1,71 @@
+
+async function purchase(arr){
+
+  let decimal = 0;
+  
+  arr.forEach(async item =>{
+  try{
+    buyprice = await CBclient.rest.product.getProductStats(item + '-USD');
+    decimal = getDecimal(buyprice.last);
+    await CBclient.rest.order.placeOrder({
+      price: (buyprice.last * (1.02)).toFixed(decimal),
+      product_id: item + '-USD',
+      side: 'buy',
+      size: ((5/buyprice.last)).toFixed(8),
+      type: 'limit',
+      })
+  console.log(item + " Purchased")
+  process.exit();
+}
+catch (e){
+  console.log(e);
+  console.log(item + "Coinbase not purchased");
+}
+})
+}
+
+/*
+//Test CMC Coin Data
+const axios = require('axios');
+
+let response = null;
+new Promise(async (resolve, reject) => {
+  try {
+    response = await axios.get('https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?limit=5000&market_cap_min=100000000', {
+      headers: {
+        'X-CMC_PRO_API_KEY': '336ef3e8-1ab3-400f-833e-9a203d4ba5f2',
+      },
+    });
+  } catch(ex) {
+    response = null;
+    // error
+    console.log(ex);
+    reject(ex);
+  }
+  if (response) {
+    // success
+    const json = response.data;
+    for(let i = 0; i < json.data.length; i++){
+      console.log(json.data[i].symbol);
+      fs.appendFile('coins.txt', `${json.data[i].symbol}`, function (err) {
+        if (err) throw err;
+      });
+    }
+    resolve(json);
+  }
+});
+*/
+//
+
+//function getCBThreshold(arg){
+  //Get Price Feed
+  const url = 'https://api.exchange.coinbase.com/products/'+ 'BTC' + '-USD/candles?granularity=60';
+  const options = {method: 'GET', headers: {Accept: 'application/json'}};
+  let details = 0;
+  
+fetch(url, options)
+    .await(res => res.json())
+    .await(json => console.log(json[0][1]))
+    .catch(err => console.error('error:' + err));
+
+  //
