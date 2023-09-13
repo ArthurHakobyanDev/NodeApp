@@ -7,11 +7,25 @@ const fetch = require('node-fetch');
 const fs = require('fs');
 const axios = require('axios');
 const globalSettings = require('./settings');
+let lookupEnable = false;
+
+//Connecting to MySQL database
+
+const con = mysql.createConnection({
+  host: `ec2-54-153-42-2.us-west-1.compute.amazonaws.com`,
+  user: 'root',
+  port: '3306',
+  password: 'Universalplayer12345!',
+  database: 'mydb'
+});
+
+//Global variable constructor for buy settings. Altered by front-end using ExpressJS
+
+settings = new globalSettings.Settings(0,0);
+settings.amount = 0;
 
 
-settings = new globalSettings.Settings(5,0);
-settings.amount = 5;
-
+//Getting coin data from Kucoin exchange
 
 function KuCoinThreshold(arg){
 let response = null;
@@ -31,9 +45,10 @@ response = new Promise(async (resolve, reject) => {
     resolve(json);
   }
 });
-//console.log(response);
 return response;
 }
+
+//Getting coin data from Coinbase Exchange exchange
 
 function getCBThreshold(arg){
   let response = null;
@@ -57,25 +72,20 @@ function getCBThreshold(arg){
 }
 
 
-//Kucoin
+//Kucoin API key
 const config = {
-  apiKey: '62c27bf463c6d000018aff25',
-  secretKey: 'c53b844b-2c92-4a1b-94db-9c49b19ab1ac',
-  passphrase: 'math1234',
-  environment: 'live'
 }
 
 KC.init(config)
 
+//Coinbase API key
 const auth = {
-  apiKey: '92838955aebc402df6bf22e73ae22705',
-  apiSecret: 'A0giNCNoR5LY4EGBE/xi4jRueAYmAjtCI/Riix+TDtwyd7nDn9zLu6tYenqcTVnHJD72/NAl24Q1TLB7uEyf1A==',
-  passphrase: '4m094pup3xe',
-  useSandbox: false
 }
 
 const CBclient = new CoinbasePro(auth);
-const client = new Client("AAAAAAAAAAAAAAAAAAAAAGLIeAEAAAAAlDIyLZ0PV49e27IXinEMBa%2Fn%2BHE%3DXJwxLoBxyjB2z41ut6atCbETD0q7DedVLxr0YURNuzwmYanWe5");
+const client = new Client("");
+
+//Get all coin data from Coinbsae exchange
 
 let CBProducts = 0;
 getCBStats();
@@ -83,18 +93,18 @@ async function getCBStats(){
  CBProducts = await CBclient.rest.product.getProducts();
 }
 
-//Binance
+//Binance API and key
 const Binance = require('binance-api-node').default
 
 
 const clientBinance = Binance({
-  apiKey: 'yBAgH16jsEm6Qlk1keAPHTmYiN1sLK01NX4Ujgj56GbwXbCT0V3sjSTSsSvwNY1R',
-  apiSecret: 'xgFlbYeGb8bjcBfSOsW8cZ2Bymcx0Nb64vN22o99IUBXzJAckMEFSbtZwl80SZMT',
 });
 
 async function getBinanceStats(){
   return await clientBinance.exchangeInfo();
 }
+
+//Function for purchasing coins if a new coin launch is detected
 
 async function purchase(arr){
 
@@ -114,12 +124,11 @@ async function purchase(arr){
 
     
     
-  
+//Purchasing coins off Kucoin. Does not purchase if the current price has already jumped past the buy threshold.
          //Kucoin
         
   try{
     if(purchased == 0){
-    // console.log(item);
     threshold = await KuCoinThreshold(item);
     buyprice = await KC.getTicker(item + '-USDT')
     if(Math.abs((buyprice.data.price - threshold.data[3][1])/buyprice.data.price * 100) < settings.threshold){
@@ -140,7 +149,8 @@ catch (e){
   console.log(item + " Kucoin not purchased");
 }
 
-
+//Purchasing coins off Binance. Does not purchase if the current price has already jumped past the buy threshold.
+      
 //Binance
 
 try{
@@ -165,7 +175,7 @@ catch (e){
 console.log(item + " Binance not purchased");
 }
 
-
+//Purchasing coins off Coinbase. Does not purchase if the current price has already jumped past the buy threshold.
         //Coinbase
        
 try{
@@ -191,10 +201,11 @@ console.log(item + "Coinbase not purchased");
 }
 
 
- 
-//})
+
 }
 }
+
+//Coin price formatting functions
 
 function getDecimal(num){
   let str = num.toString();
@@ -245,21 +256,12 @@ async function getFixedDeciBinance(coin){
   }
 
  
-/*
- await CBclient.rest.order.placeOrder({
-  await CBclient.rest.order.place_limit_order({
-    type: "market",
-    side: "buy",
-    product_id: item + "-USD",
-    funds: "1"
-  })
-  */
-
+//API call to CoinbaseAssets. Checks for tweet then passes it to analyzeTweet() function
 
 async function lookup () {
   try {
     const recentSearch =    await client.tweets.tweetsRecentSearch({
-        query: "(from:NoroupDev)",
+        query: "(from:CoinbaseAssets)",
       });
       analyzeTweet(recentSearch);
 
@@ -270,10 +272,10 @@ async function lookup () {
   }
 };
 
-
+//AnalyzeTweet checks if the tweet has been analyzed yet by checking with the SQL database. If it hasn't been analyzed, the tweet is stored, and is analyzed for keywords such as "planned", "roadmap". or "support". 
+//If keywords are found, function commences with extracting the coin tickers and buying them from exchanges Coinbase, Binance, and KuCoin.
 
 async function analyzeTweet(arg){
-//console.log(arg.data[0]);
 let checkText = await getSQLTweets();
 let check = 0;
 if(checkText.indexOf(arg.data[0].id) != -1)
@@ -290,13 +292,11 @@ else
 }
 if(check == 1){
 const testStr = arg.data[0].text;
-//const testStr = "Coinbase will SHIB add ETH support the";
 const arr = testStr.split(" ");
 let x = "";
 let testInt = 0;
 let count = 0;
 const arrCoins = [];
-//const arr = arg.data[0].text.split(" ")
 arr.forEach(item => {
 if(item == "planned" || item == "roadmap" || item == "support"){
 testInt = 1;
@@ -321,39 +321,10 @@ arr2.forEach(item => {
   }
   });
   purchase(arrCoins);
-  //arrCoins.forEach(item => console.log(item));
 }
 }
-/*
-if(arrCoins.length>1)
-{
-  let sql = "INSERT INTO tweetIDs (id, tweets) VALUES ('tweet', '" + arg.data[0].id + "')";
-  con.query(sql, function (err, result) {
-    if (err) throw err;
-    console.log("1 record inserted");
-  });
-    con.query("INSERT INTO tweetIDs (id, tweets) VALUES ('tweet', '" + arg.data[0].id + "')", function (err, result) {
-    if (err) throw err;
-  });
-}
-*/
 }
 
-/*
-const con = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "password",
-  database: "mydb"
-});
-*/
-const con = mysql.createConnection({
-  host: `ec2-54-153-42-2.us-west-1.compute.amazonaws.com`,
-  user: 'root',
-  port: '3306',
-  password: 'Universalplayer12345!',
-  database: 'mydb'
-});
 async function getSQLTweets() {
   return new Promise((resolve, reject) => {
     con.query("SELECT * FROM tweetIDs", function (err, result, fields) {
@@ -375,24 +346,7 @@ const fetch = require('node-fetch');
 
 const url = 'https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=60';
 const options = {method: 'GET', headers: {Accept: 'application/json'}};
-/*
-fetch(url, options)
-  .then(res => res.json())
-  .then(json => console.log(json))
-  .catch(err => console.error('error:' + err));
-  /*
-  con.query("SELECT * FROM tweetIDs", function (err, result, fields) {
-    if (err) throw err;
-    console.log(result);
-  });
-*/
-/*
-fetchdata(cburl, cboptions)
-  .then(res => res.json())
-  .then(json => console.log(json))
-  .catch(err => console.error('error:' + err));
-*/
-let lookupEnable = false;
+
 function changeSettings(amount, threshold, lookup){
   lookupEnable = lookup;
   settings.amount = amount;
